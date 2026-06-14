@@ -1,0 +1,5 @@
+.env
+.gocache
+.git
+.server.out.log
+Dockerfile
