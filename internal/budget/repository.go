@@ -24,13 +24,13 @@ func (r PostgresRepository) ListBudgets(ctx context.Context, userID, periodMonth
 	}
 
 	rows, err := r.DB.QueryContext(ctx, `
-SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.period_month, b.limit_amount,
+SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.transaction_category, b.period_month, b.limit_amount,
 	COALESCE(SUM(t.amount), 0) AS spent_amount,
 	CASE WHEN b.limit_amount > 0 THEN LEAST((COALESCE(SUM(t.amount), 0) / b.limit_amount) * 100, 999) ELSE 0 END AS progress,
 	b.icon, b.created_at, b.updated_at
 FROM budgets b
 LEFT JOIN transactions t ON t.type = 'expense'
-	AND t.category = b.category
+	AND t.category = b.transaction_category
 	AND TO_CHAR(t.transaction_date, 'YYYY-MM') = b.period_month
 	AND t.scope = b.scope
 	AND COALESCE(t.couple_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(b.couple_id, '00000000-0000-0000-0000-000000000000'::uuid)
@@ -67,16 +67,16 @@ func (r PostgresRepository) CreateBudget(ctx context.Context, userID string, req
 
 	budget, err := scanBudgetRow(r.DB.QueryRowContext(ctx, `
 WITH inserted AS (
-	INSERT INTO budgets (user_id, scope, couple_id, group_name, category, period_month, limit_amount, icon)
-	VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8)
+	INSERT INTO budgets (user_id, scope, couple_id, group_name, category, transaction_category, period_month, limit_amount, icon)
+	VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9)
 	RETURNING *
 )
-SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.period_month, b.limit_amount,
+SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.transaction_category, b.period_month, b.limit_amount,
 	0::numeric AS spent_amount,
 	0::numeric AS progress,
 	b.icon, b.created_at, b.updated_at
 FROM inserted b
-`, userID, req.Scope, req.CoupleID, req.GroupName, req.Category, req.PeriodMonth, req.LimitAmount, req.Icon))
+`, userID, req.Scope, req.CoupleID, req.GroupName, req.Category, req.TransactionCategory, req.PeriodMonth, req.LimitAmount, req.Icon))
 	if isUniqueViolation(err) {
 		return Budget{}, errors.New("budget category already exists for this month")
 	}
@@ -95,9 +95,10 @@ WITH updated AS (
 		couple_id = NULLIF($4, '')::uuid,
 		group_name = $5,
 		category = $6,
-		period_month = $7,
-		limit_amount = $8,
-		icon = $9,
+		transaction_category = $7,
+		period_month = $8,
+		limit_amount = $9,
+		icon = $10,
 		updated_at = NOW()
 	WHERE id = $2
 		AND (
@@ -110,19 +111,19 @@ WITH updated AS (
 		)
 	RETURNING *
 )
-SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.period_month, b.limit_amount,
+SELECT b.id::text, b.user_id::text, b.scope, b.couple_id::text, b.group_name, b.category, b.transaction_category, b.period_month, b.limit_amount,
 	COALESCE(SUM(t.amount), 0) AS spent_amount,
 	CASE WHEN b.limit_amount > 0 THEN LEAST((COALESCE(SUM(t.amount), 0) / b.limit_amount) * 100, 999) ELSE 0 END AS progress,
 	b.icon, b.created_at, b.updated_at
 FROM updated b
 LEFT JOIN transactions t ON t.user_id = b.user_id
 	AND t.type = 'expense'
-	AND t.category = b.category
+	AND t.category = b.transaction_category
 	AND TO_CHAR(t.transaction_date, 'YYYY-MM') = b.period_month
 	AND t.scope = b.scope
 	AND COALESCE(t.couple_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(b.couple_id, '00000000-0000-0000-0000-000000000000'::uuid)
-GROUP BY b.id, b.user_id, b.scope, b.couple_id, b.group_name, b.category, b.period_month, b.limit_amount, b.icon, b.created_at, b.updated_at
-`, userID, budgetID, req.Scope, req.CoupleID, req.GroupName, req.Category, req.PeriodMonth, req.LimitAmount, req.Icon))
+GROUP BY b.id, b.user_id, b.scope, b.couple_id, b.group_name, b.category, b.transaction_category, b.period_month, b.limit_amount, b.icon, b.created_at, b.updated_at
+`, userID, budgetID, req.Scope, req.CoupleID, req.GroupName, req.Category, req.TransactionCategory, req.PeriodMonth, req.LimitAmount, req.Icon))
 	if isUniqueViolation(err) {
 		return Budget{}, errors.New("budget category already exists for this month")
 	}
@@ -199,6 +200,7 @@ func scanBudget(scanner budgetScanner) (Budget, error) {
 		&coupleID,
 		&budget.GroupName,
 		&budget.Category,
+		&budget.TransactionCategory,
 		&budget.PeriodMonth,
 		&budget.LimitAmount,
 		&budget.SpentAmount,

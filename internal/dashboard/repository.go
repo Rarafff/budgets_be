@@ -150,7 +150,7 @@ LEFT JOIN LATERAL (
 	WHERE t.user_id = b.user_id
 		AND t.scope = 'personal'
 		AND t.type = 'expense'
-		AND t.category = b.category
+		AND t.category = b.transaction_category
 		AND TO_CHAR(t.transaction_date, 'YYYY-MM') = b.period_month
 ) spent ON TRUE
 WHERE b.user_id = $1 AND b.period_month = $2 AND b.scope = 'personal'

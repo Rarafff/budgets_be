@@ -103,14 +103,6 @@ FOR UPDATE OF b
 		return Bill{}, errors.New("bill is already paid")
 	}
 
-	periodMonth := req.PaymentDate[:7]
-	exists, err := budgetCategoryExists(ctx, tx, userID, existing.Category, periodMonth)
-	if err != nil {
-		return Bill{}, err
-	}
-	if !exists {
-		return Bill{}, errors.New("bill category must match a budget category for " + periodMonth)
-	}
 	if err := ensureWallet(ctx, tx, userID, req.WalletID); err != nil {
 		return Bill{}, err
 	}
@@ -155,26 +147,6 @@ WITH updated AS (
 		return Bill{}, err
 	}
 	return paid, nil
-}
-
-func (r PostgresRepository) BudgetCategoryExists(ctx context.Context, userID, category, periodMonth string) (bool, error) {
-	return budgetCategoryExists(ctx, r.DB, userID, category, periodMonth)
-}
-
-type queryer interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func budgetCategoryExists(ctx context.Context, q queryer, userID, category, periodMonth string) (bool, error) {
-	var exists bool
-	err := q.QueryRowContext(ctx, `
-SELECT EXISTS(
-	SELECT 1
-	FROM budgets
-	WHERE user_id = $1 AND category = $2 AND period_month = $3
-)
-`, userID, category, periodMonth).Scan(&exists)
-	return exists, err
 }
 
 func ensureWallet(ctx context.Context, tx *sql.Tx, userID, walletID string) error {

@@ -44,7 +44,6 @@ type Repository interface {
 	UpdateBill(ctx context.Context, userID, billID string, req SaveBillRequest) (Bill, error)
 	DeleteBill(ctx context.Context, userID, billID string) error
 	PayBill(ctx context.Context, userID, billID string, req PayBillRequest) (Bill, error)
-	BudgetCategoryExists(ctx context.Context, userID, category, periodMonth string) (bool, error)
 }
 
 type Service struct {

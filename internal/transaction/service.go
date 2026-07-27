@@ -39,7 +39,6 @@ type Repository interface {
 	CreateTransactions(ctx context.Context, userID string, reqs []SaveTransactionRequest) ([]Transaction, error)
 	UpdateTransaction(ctx context.Context, userID, transactionID string, req SaveTransactionRequest) (Transaction, error)
 	DeleteTransaction(ctx context.Context, userID, transactionID string) error
-	BudgetCategoryExists(ctx context.Context, userID, category, periodMonth, scope, coupleID string) (bool, error)
 }
 
 type Service struct {
@@ -68,9 +67,6 @@ func (s Service) Create(ctx context.Context, userID string, req SaveTransactionR
 	if err != nil {
 		return Transaction{}, err
 	}
-	if err := s.validateBudgetCategory(ctx, userID, normalized); err != nil {
-		return Transaction{}, err
-	}
 	return s.Repo.CreateTransaction(ctx, userID, normalized)
 }
 
@@ -88,9 +84,6 @@ func (s Service) CreateBulk(ctx context.Context, userID string, reqs []SaveTrans
 		if err != nil {
 			return nil, errors.New("row " + strconv.Itoa(index+1) + ": " + err.Error())
 		}
-		if err := s.validateBudgetCategory(ctx, userID, normalizedReq); err != nil {
-			return nil, errors.New("row " + strconv.Itoa(index+1) + ": " + err.Error())
-		}
 		normalized = append(normalized, normalizedReq)
 	}
 
@@ -104,9 +97,6 @@ func (s Service) Update(ctx context.Context, userID, transactionID string, req S
 
 	normalized, err := normalizeRequest(req)
 	if err != nil {
-		return Transaction{}, err
-	}
-	if err := s.validateBudgetCategory(ctx, userID, normalized); err != nil {
 		return Transaction{}, err
 	}
 	return s.Repo.UpdateTransaction(ctx, userID, transactionID, normalized)
@@ -185,20 +175,4 @@ func normalizeRequest(req SaveTransactionRequest) (SaveTransactionRequest, error
 	}
 
 	return req, nil
-}
-
-func (s Service) validateBudgetCategory(ctx context.Context, userID string, req SaveTransactionRequest) error {
-	if req.Type != "expense" {
-		return nil
-	}
-
-	periodMonth := req.TransactionDate[:7]
-	exists, err := s.Repo.BudgetCategoryExists(ctx, userID, req.Category, periodMonth, req.Scope, req.CoupleID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return errors.New("expense category must match a budget category for " + periodMonth)
-	}
-	return nil
 }

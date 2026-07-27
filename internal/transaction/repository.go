@@ -198,32 +198,6 @@ WHERE user_id = $1 AND id = $2
 	return tx.Commit()
 }
 
-func (r PostgresRepository) BudgetCategoryExists(ctx context.Context, userID, category, periodMonth, scope, coupleID string) (bool, error) {
-	var exists bool
-	err := r.DB.QueryRowContext(ctx, `
-SELECT EXISTS(
-	SELECT 1
-	FROM budgets
-	WHERE category = $2
-		AND period_month = $3
-		AND scope = $4
-		AND COALESCE(couple_id, '00000000-0000-0000-0000-000000000000'::uuid) = COALESCE(NULLIF($5, '')::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
-		AND (
-			(scope = 'personal' AND user_id = $1)
-			OR (
-				scope = 'couple'
-				AND EXISTS (
-					SELECT 1
-					FROM couple_members cm
-					WHERE cm.user_id = $1 AND cm.couple_id = budgets.couple_id
-				)
-			)
-		)
-)
-`, userID, category, periodMonth, scope, coupleID).Scan(&exists)
-	return exists, err
-}
-
 func (r PostgresRepository) ensureCoupleAccess(ctx context.Context, userID string, req SaveTransactionRequest) error {
 	if req.Scope != "couple" {
 		return nil

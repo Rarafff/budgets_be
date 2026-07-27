@@ -145,7 +145,7 @@ SELECT b.category, b.group_name, b.limit_amount,
 FROM budgets b
 LEFT JOIN transactions t ON t.user_id = b.user_id
 	AND t.type = 'expense'
-	AND t.category = b.category
+	AND t.category = b.transaction_category
 	AND TO_CHAR(t.transaction_date, 'YYYY-MM') = b.period_month
 WHERE b.user_id = $1 AND b.period_month = $2
 GROUP BY b.id

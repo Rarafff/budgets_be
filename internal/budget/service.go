@@ -13,19 +13,20 @@ var validGroups = map[string]bool{
 }
 
 type Budget struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"userId"`
-	Scope       string    `json:"scope"`
-	CoupleID    *string   `json:"coupleId"`
-	GroupName   string    `json:"groupName"`
-	Category    string    `json:"category"`
-	PeriodMonth string    `json:"periodMonth"`
-	LimitAmount float64   `json:"limitAmount"`
-	SpentAmount float64   `json:"spentAmount"`
-	Progress    float64   `json:"progress"`
-	Icon        string    `json:"icon"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                  string    `json:"id"`
+	UserID              string    `json:"userId"`
+	Scope               string    `json:"scope"`
+	CoupleID            *string   `json:"coupleId"`
+	GroupName           string    `json:"groupName"`
+	Category            string    `json:"category"`
+	TransactionCategory string    `json:"transactionCategory"`
+	PeriodMonth         string    `json:"periodMonth"`
+	LimitAmount         float64   `json:"limitAmount"`
+	SpentAmount         float64   `json:"spentAmount"`
+	Progress            float64   `json:"progress"`
+	Icon                string    `json:"icon"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 type Repository interface {
@@ -40,13 +41,14 @@ type Service struct {
 }
 
 type SaveBudgetRequest struct {
-	Scope       string  `json:"scope"`
-	CoupleID    string  `json:"coupleId"`
-	GroupName   string  `json:"groupName"`
-	Category    string  `json:"category"`
-	PeriodMonth string  `json:"periodMonth"`
-	LimitAmount float64 `json:"limitAmount"`
-	Icon        string  `json:"icon"`
+	Scope               string  `json:"scope"`
+	CoupleID            string  `json:"coupleId"`
+	GroupName           string  `json:"groupName"`
+	Category            string  `json:"category"`
+	TransactionCategory string  `json:"transactionCategory"`
+	PeriodMonth         string  `json:"periodMonth"`
+	LimitAmount         float64 `json:"limitAmount"`
+	Icon                string  `json:"icon"`
 }
 
 func (s Service) List(ctx context.Context, userID, periodMonth, scope, coupleID string) ([]Budget, error) {
@@ -100,6 +102,7 @@ func normalizeRequest(req SaveBudgetRequest) (SaveBudgetRequest, error) {
 	req.Scope = strings.ToLower(strings.TrimSpace(req.Scope))
 	req.CoupleID = strings.TrimSpace(req.CoupleID)
 	req.Category = strings.TrimSpace(req.Category)
+	req.TransactionCategory = strings.TrimSpace(req.TransactionCategory)
 	req.PeriodMonth = normalizePeriodMonth(req.PeriodMonth)
 	req.Icon = strings.TrimSpace(req.Icon)
 
@@ -123,6 +126,9 @@ func normalizeRequest(req SaveBudgetRequest) (SaveBudgetRequest, error) {
 	}
 	if req.Category == "" {
 		return SaveBudgetRequest{}, errors.New("category is required")
+	}
+	if req.TransactionCategory == "" {
+		req.TransactionCategory = req.Category
 	}
 	if req.PeriodMonth == "" {
 		return SaveBudgetRequest{}, errors.New("period month is required")

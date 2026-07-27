@@ -128,6 +128,8 @@ CREATE INDEX IF NOT EXISTS budgets_user_id_idx ON budgets (user_id);
 CREATE INDEX IF NOT EXISTS budgets_period_month_idx ON budgets (period_month);
 ALTER TABLE budgets ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'personal';
 ALTER TABLE budgets ADD COLUMN IF NOT EXISTS couple_id UUID REFERENCES couples(id) ON DELETE CASCADE;
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS transaction_category TEXT NOT NULL DEFAULT '';
+UPDATE budgets SET transaction_category = category WHERE transaction_category = '';
 ALTER TABLE budgets DROP CONSTRAINT IF EXISTS budgets_user_id_category_period_month_key;
 DROP INDEX IF EXISTS budgets_scope_unique_idx;
 CREATE UNIQUE INDEX IF NOT EXISTS budgets_personal_unique_idx
