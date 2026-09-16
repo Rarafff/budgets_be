@@ -25,6 +25,7 @@ type Wallet struct {
 	AccountNumber string    `json:"accountNumber"`
 	CreditLimit   float64   `json:"creditLimit"`
 	DueDay        *int      `json:"dueDay"`
+	MinimumBalance float64   `json:"minimumBalance"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -48,6 +49,7 @@ type SaveWalletRequest struct {
 	AccountNumber string  `json:"accountNumber"`
 	CreditLimit   float64 `json:"creditLimit"`
 	DueDay        *int    `json:"dueDay"`
+	MinimumBalance float64 `json:"minimumBalance"`
 }
 
 func (s Service) List(ctx context.Context, userID string) ([]Wallet, error) {
@@ -105,10 +107,15 @@ func normalizeRequest(req SaveWalletRequest) (SaveWalletRequest, error) {
 	if req.CreditLimit < 0 {
 		return SaveWalletRequest{}, errors.New("credit limit cannot be negative")
 	}
+	if req.MinimumBalance < 0 {
+		return SaveWalletRequest{}, errors.New("minimum balance cannot be negative")
+	}
 
 	if !isLiability(req.Type) {
 		req.CreditLimit = 0
 		req.DueDay = nil
+	} else {
+		req.MinimumBalance = 0
 	}
 
 	return req, nil

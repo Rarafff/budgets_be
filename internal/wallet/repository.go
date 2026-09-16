@@ -11,7 +11,7 @@ type PostgresRepository struct {
 
 func (r PostgresRepository) ListWallets(ctx context.Context, userID string) ([]Wallet, error) {
 	rows, err := r.DB.QueryContext(ctx, `
-SELECT id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, created_at, updated_at
+SELECT id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, minimum_balance, created_at, updated_at
 FROM wallets
 WHERE user_id = $1
 ORDER BY created_at ASC
@@ -35,10 +35,10 @@ ORDER BY created_at ASC
 
 func (r PostgresRepository) CreateWallet(ctx context.Context, userID string, req SaveWalletRequest) (Wallet, error) {
 	return scanWalletRow(r.DB.QueryRowContext(ctx, `
-INSERT INTO wallets (user_id, name, type, currency, balance, account_number, credit_limit, due_day)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, created_at, updated_at
-`, userID, req.Name, req.Type, req.Currency, req.Balance, req.AccountNumber, req.CreditLimit, req.DueDay))
+INSERT INTO wallets (user_id, name, type, currency, balance, account_number, credit_limit, due_day, minimum_balance)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, minimum_balance, created_at, updated_at
+`, userID, req.Name, req.Type, req.Currency, req.Balance, req.AccountNumber, req.CreditLimit, req.DueDay, req.MinimumBalance))
 }
 
 func (r PostgresRepository) UpdateWallet(ctx context.Context, userID, walletID string, req SaveWalletRequest) (Wallet, error) {
@@ -51,10 +51,11 @@ SET name = $3,
 	account_number = $7,
 	credit_limit = $8,
 	due_day = $9,
+	minimum_balance = $10,
 	updated_at = NOW()
 WHERE user_id = $1 AND id = $2
-RETURNING id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, created_at, updated_at
-`, userID, walletID, req.Name, req.Type, req.Currency, req.Balance, req.AccountNumber, req.CreditLimit, req.DueDay))
+RETURNING id::text, user_id::text, name, type, currency, balance, account_number, credit_limit, due_day, minimum_balance, created_at, updated_at
+`, userID, walletID, req.Name, req.Type, req.Currency, req.Balance, req.AccountNumber, req.CreditLimit, req.DueDay, req.MinimumBalance))
 }
 
 func (r PostgresRepository) DeleteWallet(ctx context.Context, userID, walletID string) error {
@@ -93,6 +94,7 @@ func scanWallet(scanner walletScanner) (Wallet, error) {
 		&wallet.AccountNumber,
 		&wallet.CreditLimit,
 		&dueDay,
+		&wallet.MinimumBalance,
 		&wallet.CreatedAt,
 		&wallet.UpdatedAt,
 	)

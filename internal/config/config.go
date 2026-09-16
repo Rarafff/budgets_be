@@ -20,6 +20,9 @@ type Config struct {
 	Port                    string
 	AllowedOrigins          []string
 	MaxRequestBodyBytes     int64
+	VAPIDPublicKey          string
+	VAPIDPrivateKey         string
+	VAPIDSubject            string
 }
 
 func FromEnv() (Config, error) {
@@ -35,6 +38,9 @@ func FromEnv() (Config, error) {
 		Port:                    envOrDefault("PORT", "8080"),
 		AllowedOrigins:          splitCSV(envOrDefault("ALLOWED_ORIGINS", "*")),
 		MaxRequestBodyBytes:     envInt64OrDefault("MAX_REQUEST_BODY_BYTES", 10<<20),
+		VAPIDPublicKey:          strings.TrimSpace(os.Getenv("VAPID_PUBLIC_KEY")),
+		VAPIDPrivateKey:         strings.TrimSpace(os.Getenv("VAPID_PRIVATE_KEY")),
+		VAPIDSubject:            envOrDefault("VAPID_SUBJECT", "mailto:admin@budgets.app"),
 	}
 
 	if cfg.OpenRouterAPIKey == "" {

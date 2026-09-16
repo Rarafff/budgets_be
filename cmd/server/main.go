@@ -17,6 +17,7 @@ import (
 	"budgets_be/internal/dashboard"
 	"budgets_be/internal/database"
 	"budgets_be/internal/goal"
+	"budgets_be/internal/notification"
 	"budgets_be/internal/openrouter"
 	"budgets_be/internal/receipt"
 	"budgets_be/internal/report"
@@ -99,6 +100,11 @@ func main() {
 	asset.RegisterRoutes(mux, asset.Service{
 		Repo: asset.PostgresRepository{DB: db},
 	}, auth.AuthMiddleware(authService))
+	pushService := notification.Service{DB: db, Config: notification.Config{
+		PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject,
+	}}
+	notification.RegisterRoutes(mux, pushService, auth.AuthMiddleware(authService))
+	pushService.Start(context.Background())
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))

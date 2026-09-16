@@ -32,6 +32,23 @@ WHERE user_id = $1
 	}
 	summary.MonthlyNet = summary.MonthlyIncome - summary.MonthlyExpense
 
+	weekStart := time.Now()
+	weekdayOffset := (int(weekStart.Weekday()) + 6) % 7
+	weekStart = time.Date(weekStart.Year(), weekStart.Month(), weekStart.Day()-weekdayOffset, 0, 0, 0, 0, weekStart.Location())
+	weekEnd := weekStart.AddDate(0, 0, 7)
+	if err := r.DB.QueryRowContext(ctx, `
+SELECT
+	COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0),
+	COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0)
+FROM transactions
+WHERE user_id = $1
+	AND scope = 'personal'
+	AND transaction_date >= $2
+	AND transaction_date < $3
+`, userID, weekStart, weekEnd).Scan(&summary.WeeklyIncome, &summary.WeeklyExpense); err != nil {
+		return Summary{}, err
+	}
+
 	if err := r.DB.QueryRowContext(ctx, `
 SELECT
 	COALESCE(SUM(CASE WHEN type IN ('Credit Card', 'Paylater') THEN balance ELSE 0 END), 0),
@@ -45,6 +62,31 @@ WHERE user_id = $1
 	if summary.MonthlyExpense > 0 {
 		summary.EmergencyFundMonths = summary.LiquidAssets / summary.MonthlyExpense
 	}
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	daysElapsed := now.Day()
+	daysRemaining := int(end.Sub(today).Hours() / 24)
+	if daysElapsed < 1 {
+		daysElapsed = 1
+	}
+	if daysRemaining < 0 {
+		daysRemaining = 0
+	}
+	summary.ForecastDailySpend = summary.MonthlyExpense / float64(daysElapsed)
+	summary.ForecastSpend = summary.ForecastDailySpend * float64(daysRemaining)
+	summary.ForecastDate = end.AddDate(0, 0, -1).Format("2006-01-02")
+	if err := r.DB.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(amount), 0)
+FROM bills
+WHERE user_id = $1
+	AND status <> 'paid'
+	AND due_date >= $2
+	AND due_date < $3
+`, userID, today, end).Scan(&summary.ForecastBills); err != nil {
+		return Summary{}, err
+	}
+	summary.ForecastBalance = summary.CashBalance - summary.ForecastBills - summary.ForecastSpend
 
 	budgetLimit, budgetSpent, budgetGroups, err := r.budgetSummary(ctx, userID, start.Format("2006-01"))
 	if err != nil {
@@ -67,6 +109,17 @@ WHERE user_id = $1
 		return Summary{}, err
 	}
 	summary.IncomingBills = incomingBills
+
+	if err := r.DB.QueryRowContext(ctx, `
+SELECT
+	COUNT(*),
+	COUNT(*) FILTER (WHERE current_amount >= target_amount),
+	COUNT(*) FILTER (WHERE deadline < CURRENT_DATE AND current_amount < target_amount)
+FROM goals
+WHERE user_id = $1
+`, userID).Scan(&summary.GoalCount, &summary.GoalCompletedCount, &summary.GoalOverdueCount); err != nil {
+		return Summary{}, err
+	}
 
 	categories, err := r.expenseByCategory(ctx, userID, start, end)
 	if err != nil {
@@ -269,7 +322,7 @@ ORDER BY transaction_date ASC
 
 func (r PostgresRepository) wallets(ctx context.Context, userID string) ([]WalletSummary, error) {
 	rows, err := r.DB.QueryContext(ctx, `
-SELECT id::text, name, type, currency, balance
+SELECT id::text, name, type, currency, balance, minimum_balance
 FROM wallets
 WHERE user_id = $1
 ORDER BY created_at ASC
@@ -282,7 +335,7 @@ ORDER BY created_at ASC
 	items := []WalletSummary{}
 	for rows.Next() {
 		var item WalletSummary
-		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.Currency, &item.Balance); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.Currency, &item.Balance, &item.MinimumBalance); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

@@ -7,12 +7,21 @@ import (
 
 type Summary struct {
 	Period              Period              `json:"period"`
+	WeekStart           string              `json:"weekStart"`
+	WeekEnd             string              `json:"weekEnd"`
+	WeeklyIncome        float64             `json:"weeklyIncome"`
+	WeeklyExpense       float64             `json:"weeklyExpense"`
 	MonthlyIncome       float64             `json:"monthlyIncome"`
 	MonthlyExpense      float64             `json:"monthlyExpense"`
 	MonthlyNet          float64             `json:"monthlyNet"`
 	CashBalance         float64             `json:"cashBalance"`
 	DebtBalance         float64             `json:"debtBalance"`
 	LiquidAssets        float64             `json:"liquidAssets"`
+	ForecastBalance     float64             `json:"forecastBalance"`
+	ForecastBills       float64             `json:"forecastBills"`
+	ForecastDailySpend  float64             `json:"forecastDailySpend"`
+	ForecastSpend       float64             `json:"forecastSpend"`
+	ForecastDate        string              `json:"forecastDate"`
 	EmergencyFundMonths float64             `json:"emergencyFundMonths"`
 	BudgetLimit         float64             `json:"budgetLimit"`
 	BudgetSpent         float64             `json:"budgetSpent"`
@@ -21,6 +30,9 @@ type Summary struct {
 	BudgetUsedPercent   float64             `json:"budgetUsedPercent"`
 	BudgetByGroup       []BudgetGroup       `json:"budgetByGroup"`
 	IncomingBills       []IncomingBill      `json:"incomingBills"`
+	GoalCount           int                 `json:"goalCount"`
+	GoalCompletedCount  int                 `json:"goalCompletedCount"`
+	GoalOverdueCount    int                 `json:"goalOverdueCount"`
 	ExpenseByCategory   []CategorySummary   `json:"expenseByCategory"`
 	RecentTransactions  []RecentTransaction `json:"recentTransactions"`
 	CalendarEvents      []CalendarEvent     `json:"calendarEvents"`
@@ -83,6 +95,7 @@ type WalletSummary struct {
 	Type     string  `json:"type"`
 	Currency string  `json:"currency"`
 	Balance  float64 `json:"balance"`
+	MinimumBalance float64 `json:"minimumBalance"`
 }
 
 type Repository interface {
@@ -97,6 +110,15 @@ func (s Service) Summary(ctx context.Context, userID string) (Summary, error) {
 	now := time.Now()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	end := start.AddDate(0, 1, 0)
+	weekdayOffset := (int(now.Weekday()) + 6) % 7
+	weekStart := time.Date(now.Year(), now.Month(), now.Day()-weekdayOffset, 0, 0, 0, 0, now.Location())
+	weekEnd := weekStart.AddDate(0, 0, 7)
 
-	return s.Repo.GetSummary(ctx, userID, start, end)
+	summary, err := s.Repo.GetSummary(ctx, userID, start, end)
+	if err != nil {
+		return Summary{}, err
+	}
+	summary.WeekStart = weekStart.Format("2006-01-02")
+	summary.WeekEnd = weekEnd.AddDate(0, 0, -1).Format("2006-01-02")
+	return summary, nil
 }

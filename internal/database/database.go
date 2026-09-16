@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS wallets (
 	account_number TEXT NOT NULL DEFAULT '',
 	credit_limit NUMERIC(20, 2) NOT NULL DEFAULT 0,
 	due_day INTEGER,
+	minimum_balance NUMERIC(20, 2) NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -250,6 +251,19 @@ ALTER TABLE bills ADD COLUMN IF NOT EXISTS repeat_interval TEXT NOT NULL DEFAULT
 
 ALTER TABLE wallets ALTER COLUMN balance TYPE NUMERIC(20, 2);
 ALTER TABLE wallets ALTER COLUMN credit_limit TYPE NUMERIC(20, 2);
+ALTER TABLE wallets ADD COLUMN IF NOT EXISTS minimum_balance NUMERIC(20, 2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	endpoint TEXT NOT NULL UNIQUE,
+	p256dh TEXT NOT NULL,
+	auth TEXT NOT NULL,
+	last_sent_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx ON push_subscriptions (user_id);
 ALTER TABLE transactions ALTER COLUMN amount TYPE NUMERIC(20, 2);
 ALTER TABLE budgets ALTER COLUMN limit_amount TYPE NUMERIC(20, 2);
 ALTER TABLE goals ALTER COLUMN target_amount TYPE NUMERIC(20, 2);
