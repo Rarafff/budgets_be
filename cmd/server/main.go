@@ -12,6 +12,7 @@ import (
 	"budgets_be/internal/auth"
 	"budgets_be/internal/bill"
 	"budgets_be/internal/budget"
+	"budgets_be/internal/category"
 	"budgets_be/internal/config"
 	"budgets_be/internal/couple"
 	"budgets_be/internal/dashboard"
@@ -85,9 +86,12 @@ func main() {
 	budget.RegisterRoutes(mux, budget.Service{
 		Repo: budget.PostgresRepository{DB: db},
 	}, auth.AuthMiddleware(authService))
-	bill.RegisterRoutes(mux, bill.Service{
-		Repo: bill.PostgresRepository{DB: db},
+	category.RegisterRoutes(mux, category.Service{
+		Repo: category.PostgresRepository{DB: db},
 	}, auth.AuthMiddleware(authService))
+	billService := bill.Service{Repo: bill.PostgresRepository{DB: db}}
+	bill.RegisterRoutes(mux, billService, auth.AuthMiddleware(authService))
+	billService.StartAutomaticPayments(context.Background())
 	couple.RegisterRoutes(mux, couple.Service{
 		Repo: couple.PostgresRepository{DB: db},
 	}, auth.AuthMiddleware(authService))

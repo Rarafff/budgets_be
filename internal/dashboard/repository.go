@@ -152,7 +152,7 @@ func (r PostgresRepository) incomingBills(ctx context.Context, userID string) ([
 	rows, err := r.DB.QueryContext(ctx, `
 SELECT b.id::text, b.name, b.category, b.provider, b.wallet_id::text, w.name, b.amount, b.due_date::text,
 	CASE
-		WHEN b.status <> 'paid' AND b.due_date < CURRENT_DATE THEN 'overdue'
+		WHEN b.status = 'upcoming' AND b.due_date < CURRENT_DATE THEN 'overdue'
 		ELSE b.status
 	END AS status,
 	b.note,

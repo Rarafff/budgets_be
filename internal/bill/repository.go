@@ -12,6 +12,84 @@ type PostgresRepository struct {
 	DB *sql.DB
 }
 
+func (r PostgresRepository) ProcessAutomaticPayments(ctx context.Context) error {
+	type dueBill struct {
+		id, userID, walletID string
+		balance, amount      float64
+	}
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT b.id::text, b.user_id::text, b.wallet_id::text, w.balance, b.amount
+FROM bills b
+JOIN wallets w ON w.id = b.wallet_id
+WHERE b.is_recurring = TRUE
+	AND b.auto_pay = TRUE
+	AND b.status = 'upcoming'
+	AND b.due_date <= CURRENT_DATE
+`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	items := []dueBill{}
+	for rows.Next() {
+		var item dueBill
+		if err := rows.Scan(&item.id, &item.userID, &item.walletID, &item.balance, &item.amount); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		if item.balance < item.amount {
+			if err := r.skipAutomaticPayment(ctx, item.userID, item.id); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := r.PayBill(ctx, item.userID, item.id, PayBillRequest{
+			WalletID: item.walletID, PaymentDate: time.Now().Format("2006-01-02"),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r PostgresRepository) skipAutomaticPayment(ctx context.Context, userID, billID string) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	existing, err := scanBillRow(tx.QueryRowContext(ctx, billSelect()+`
+WHERE b.user_id = $1 AND b.id = $2
+FOR UPDATE OF b
+`, userID, billID))
+	if err != nil {
+		return err
+	}
+	if existing.Status != "upcoming" {
+		return nil
+	}
+	if err := createNextRecurringBill(ctx, tx, existing); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+UPDATE bills
+SET status = 'skipped', auto_payment_failed_at = NOW(), updated_at = NOW()
+WHERE user_id = $1 AND id = $2
+`, userID, billID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r PostgresRepository) ListBills(ctx context.Context, userID string) ([]Bill, error) {
 	rows, err := r.DB.QueryContext(ctx, billSelect()+`
 WHERE b.user_id = $1
@@ -40,12 +118,12 @@ func (r PostgresRepository) CreateBill(ctx context.Context, userID string, req S
 	status := effectiveStatus(req.Status, req.DueDate)
 	return scanBillRow(r.DB.QueryRowContext(ctx, `
 WITH inserted AS (
-	INSERT INTO bills (user_id, wallet_id, name, category, provider, amount, due_date, status, note, is_recurring, repeat_interval)
-	VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	INSERT INTO bills (user_id, wallet_id, name, category, provider, amount, due_date, status, note, is_recurring, repeat_interval, auto_pay)
+	VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	RETURNING *
 )
 `+billSelectFrom("inserted")+`
-`, userID, req.WalletID, req.Name, req.Category, req.Provider, req.Amount, req.DueDate, status, req.Note, req.IsRecurring, req.RepeatInterval))
+`, userID, req.WalletID, req.Name, req.Category, req.Provider, req.Amount, req.DueDate, status, req.Note, req.IsRecurring, req.RepeatInterval, req.AutoPay))
 }
 
 func (r PostgresRepository) UpdateBill(ctx context.Context, userID, billID string, req SaveBillRequest) (Bill, error) {
@@ -63,12 +141,13 @@ WITH updated AS (
 		note = $10,
 		is_recurring = $11,
 		repeat_interval = $12,
+		auto_pay = $13,
 		updated_at = NOW()
 	WHERE user_id = $1 AND id = $2
 	RETURNING *
 )
 `+billSelectFrom("updated")+`
-`, userID, billID, req.WalletID, req.Name, req.Category, req.Provider, req.Amount, req.DueDate, status, req.Note, req.IsRecurring, req.RepeatInterval))
+`, userID, billID, req.WalletID, req.Name, req.Category, req.Provider, req.Amount, req.DueDate, status, req.Note, req.IsRecurring, req.RepeatInterval, req.AutoPay))
 }
 
 func (r PostgresRepository) DeleteBill(ctx context.Context, userID, billID string) error {
@@ -186,7 +265,7 @@ func billSelect() string {
 func billSelectFrom(source string) string {
 	return `
 SELECT b.id::text, b.user_id::text, b.wallet_id::text, w.name, b.name, b.category, b.provider,
-	b.amount, b.due_date::text, b.status, b.note, b.is_recurring, b.repeat_interval, b.paid_transaction_id::text, b.paid_at,
+	b.amount, b.due_date::text, b.status, b.note, b.is_recurring, b.repeat_interval, b.auto_pay, b.auto_payment_failed_at, b.paid_transaction_id::text, b.paid_at,
 	b.created_at, b.updated_at
 FROM ` + source + ` b
 LEFT JOIN wallets w ON w.id = b.wallet_id
@@ -222,6 +301,8 @@ func scanBill(scanner billScanner) (Bill, error) {
 		&bill.Note,
 		&bill.IsRecurring,
 		&bill.RepeatInterval,
+		&bill.AutoPay,
+		&bill.AutoPaymentFailedAt,
 		&paidTransactionID,
 		&paidAt,
 		&bill.CreatedAt,
@@ -256,8 +337,8 @@ func createNextRecurringBill(ctx context.Context, tx *sql.Tx, paid Bill) error {
 	}
 
 	result, err := tx.ExecContext(ctx, `
-INSERT INTO bills (user_id, wallet_id, name, category, provider, amount, due_date, status, note, is_recurring, repeat_interval)
-SELECT $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, TRUE, 'monthly'
+	INSERT INTO bills (user_id, wallet_id, name, category, provider, amount, due_date, status, note, is_recurring, repeat_interval, auto_pay)
+	SELECT $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, TRUE, 'monthly', $10
 WHERE NOT EXISTS (
 	SELECT 1
 	FROM bills
@@ -268,7 +349,7 @@ WHERE NOT EXISTS (
 		AND due_date = $7
 		AND status <> 'paid'
 )
-`, paid.UserID, nullableStringValue(paid.WalletID), paid.Name, paid.Category, paid.Provider, paid.Amount, nextDueDate, effectiveStatus("upcoming", nextDueDate), paid.Note)
+`, paid.UserID, nullableStringValue(paid.WalletID), paid.Name, paid.Category, paid.Provider, paid.Amount, nextDueDate, effectiveStatus("upcoming", nextDueDate), paid.Note, paid.AutoPay)
 	if err != nil {
 		return err
 	}

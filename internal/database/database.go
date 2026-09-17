@@ -73,6 +73,16 @@ CREATE TABLE IF NOT EXISTS wallets (
 
 CREATE INDEX IF NOT EXISTS wallets_user_id_idx ON wallets (user_id);
 
+CREATE TABLE IF NOT EXISTS categories (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	type TEXT NOT NULL CHECK (type IN ('expense', 'income')),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	UNIQUE (user_id, name, type)
+);
+CREATE INDEX IF NOT EXISTS categories_user_id_idx ON categories (user_id);
+
 CREATE TABLE IF NOT EXISTS transactions (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -237,6 +247,8 @@ CREATE TABLE IF NOT EXISTS bills (
 	note TEXT NOT NULL DEFAULT '',
 	is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
 	repeat_interval TEXT NOT NULL DEFAULT '',
+	auto_pay BOOLEAN NOT NULL DEFAULT FALSE,
+	auto_payment_failed_at TIMESTAMPTZ,
 	paid_transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
 	paid_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -248,6 +260,8 @@ CREATE INDEX IF NOT EXISTS bills_due_date_idx ON bills (due_date);
 CREATE INDEX IF NOT EXISTS bills_status_idx ON bills (status);
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS repeat_interval TEXT NOT NULL DEFAULT '';
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_pay BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS auto_payment_failed_at TIMESTAMPTZ;
 
 ALTER TABLE wallets ALTER COLUMN balance TYPE NUMERIC(20, 2);
 ALTER TABLE wallets ALTER COLUMN credit_limit TYPE NUMERIC(20, 2);

@@ -19,23 +19,25 @@ var validRepeatIntervals = map[string]bool{
 }
 
 type Bill struct {
-	ID                string     `json:"id"`
-	UserID            string     `json:"userId"`
-	WalletID          *string    `json:"walletId"`
-	WalletName        *string    `json:"walletName"`
-	Name              string     `json:"name"`
-	Category          string     `json:"category"`
-	Provider          string     `json:"provider"`
-	Amount            float64    `json:"amount"`
-	DueDate           string     `json:"dueDate"`
-	Status            string     `json:"status"`
-	Note              string     `json:"note"`
-	IsRecurring       bool       `json:"isRecurring"`
-	RepeatInterval    string     `json:"repeatInterval"`
-	PaidTransactionID *string    `json:"paidTransactionId"`
-	PaidAt            *time.Time `json:"paidAt"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
+	ID                  string     `json:"id"`
+	UserID              string     `json:"userId"`
+	WalletID            *string    `json:"walletId"`
+	WalletName          *string    `json:"walletName"`
+	Name                string     `json:"name"`
+	Category            string     `json:"category"`
+	Provider            string     `json:"provider"`
+	Amount              float64    `json:"amount"`
+	DueDate             string     `json:"dueDate"`
+	Status              string     `json:"status"`
+	Note                string     `json:"note"`
+	IsRecurring         bool       `json:"isRecurring"`
+	RepeatInterval      string     `json:"repeatInterval"`
+	AutoPay             bool       `json:"autoPay"`
+	AutoPaymentFailedAt *time.Time `json:"autoPaymentFailedAt"`
+	PaidTransactionID   *string    `json:"paidTransactionId"`
+	PaidAt              *time.Time `json:"paidAt"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
 type Repository interface {
@@ -50,6 +52,32 @@ type Service struct {
 	Repo Repository
 }
 
+type automaticPaymentProcessor interface {
+	ProcessAutomaticPayments(ctx context.Context) error
+}
+
+// StartAutomaticPayments checks due recurring bills at startup and then hourly.
+// A bill with insufficient funds is marked skipped and rolled forward one month.
+func (s Service) StartAutomaticPayments(ctx context.Context) {
+	processor, ok := s.Repo.(automaticPaymentProcessor)
+	if !ok {
+		return
+	}
+	go func() {
+		_ = processor.ProcessAutomaticPayments(ctx)
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = processor.ProcessAutomaticPayments(ctx)
+			}
+		}
+	}()
+}
+
 type SaveBillRequest struct {
 	WalletID       string  `json:"walletId"`
 	Name           string  `json:"name"`
@@ -61,6 +89,7 @@ type SaveBillRequest struct {
 	Note           string  `json:"note"`
 	IsRecurring    bool    `json:"isRecurring"`
 	RepeatInterval string  `json:"repeatInterval"`
+	AutoPay        bool    `json:"autoPay"`
 }
 
 type PayBillRequest struct {
@@ -152,6 +181,7 @@ func normalizeSave(req SaveBillRequest) (SaveBillRequest, error) {
 	}
 	if !req.IsRecurring {
 		req.RepeatInterval = ""
+		req.AutoPay = false
 	}
 	if !validRepeatIntervals[req.RepeatInterval] {
 		return SaveBillRequest{}, errors.New("repeat interval is invalid")

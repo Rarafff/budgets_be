@@ -61,7 +61,8 @@ SELECT ps.id::text, ps.endpoint, ps.p256dh, ps.auth
 FROM push_subscriptions ps
 WHERE (ps.last_sent_at IS NULL OR ps.last_sent_at < NOW() - INTERVAL '24 hours')
 	AND (
-		EXISTS (SELECT 1 FROM bills b WHERE b.user_id = ps.user_id AND b.status <> 'paid' AND b.due_date <= CURRENT_DATE + 3)
+		EXISTS (SELECT 1 FROM bills b WHERE b.user_id = ps.user_id AND b.status IN ('upcoming', 'overdue') AND b.due_date <= CURRENT_DATE + 3)
+		OR EXISTS (SELECT 1 FROM bills b WHERE b.user_id = ps.user_id AND b.auto_payment_failed_at >= NOW() - INTERVAL '24 hours')
 		OR EXISTS (SELECT 1 FROM wallets w WHERE w.user_id = ps.user_id AND w.type NOT IN ('Credit Card', 'Paylater') AND w.minimum_balance > 0 AND w.balance <= w.minimum_balance)
 	)
 `)
