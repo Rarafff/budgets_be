@@ -191,6 +191,9 @@ func (c *Client) GenerateReceiptFromImage(ctx context.Context, prompt, dataURL s
 	}
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		if httpResp.StatusCode == http.StatusNotFound {
+			return GenerateResponse{}, fmt.Errorf("receipt model %q is unavailable on OpenRouter; update OPENROUTER_RECEIPT_MODEL", model)
+		}
 		return GenerateResponse{}, fmt.Errorf("openrouter %s: %s", httpResp.Status, strings.TrimSpace(string(respBody)))
 	}
 
