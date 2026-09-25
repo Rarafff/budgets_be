@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS categories (
 	UNIQUE (user_id, name, type)
 );
 CREATE INDEX IF NOT EXISTS categories_user_id_idx ON categories (user_id);
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS transactions (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

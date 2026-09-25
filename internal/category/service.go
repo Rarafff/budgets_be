@@ -14,12 +14,14 @@ type Category struct {
 	UserID    string    `json:"userId"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
+	Icon      string    `json:"icon"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
 type SaveRequest struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	Icon string `json:"icon"`
 }
 
 type Repository interface {
@@ -37,6 +39,7 @@ func (s Service) List(ctx context.Context, userID string) ([]Category, error) {
 func (s Service) Create(ctx context.Context, userID string, req SaveRequest) (Category, error) {
 	req.Name = strings.Join(strings.Fields(req.Name), " ")
 	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
+	req.Icon = strings.TrimSpace(req.Icon)
 	if req.Name == "" {
 		return Category{}, errors.New("category name is required")
 	}
@@ -45,6 +48,9 @@ func (s Service) Create(ctx context.Context, userID string, req SaveRequest) (Ca
 	}
 	if !validTypes[req.Type] {
 		return Category{}, errors.New("category type is invalid")
+	}
+	if len([]rune(req.Icon)) > 80 {
+		return Category{}, errors.New("category icon is invalid")
 	}
 	return s.Repo.Create(ctx, userID, req)
 }
