@@ -40,7 +40,7 @@ func FromEnv() (Config, error) {
 		MaxRequestBodyBytes:     envInt64OrDefault("MAX_REQUEST_BODY_BYTES", 10<<20),
 		VAPIDPublicKey:          strings.TrimSpace(os.Getenv("VAPID_PUBLIC_KEY")),
 		VAPIDPrivateKey:         strings.TrimSpace(os.Getenv("VAPID_PRIVATE_KEY")),
-		VAPIDSubject:            envOrDefault("VAPID_SUBJECT", "mailto:admin@budgets.app"),
+		VAPIDSubject:            envOrDefault("VAPID_SUBJECT", "mailto:admin@ber-uang.app"),
 	}
 
 	if cfg.OpenRouterAPIKey == "" {

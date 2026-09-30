@@ -105,7 +105,7 @@ func (c *Client) generateWithModel(ctx context.Context, model string, req Genera
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("HTTP-Referer", "http://localhost")
-	httpReq.Header.Set("X-Title", "Budgets AI Advisor")
+	httpReq.Header.Set("X-Title", "Ber-Uang AI Advisor")
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -177,7 +177,7 @@ func (c *Client) GenerateReceiptFromImage(ctx context.Context, prompt, dataURL s
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("HTTP-Referer", "http://localhost")
-	httpReq.Header.Set("X-Title", "Budgets Receipt Scanner")
+	httpReq.Header.Set("X-Title", "Ber-Uang Receipt Scanner")
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {

@@ -72,7 +72,7 @@ WHERE (ps.last_sent_at IS NULL OR ps.last_sent_at < NOW() - INTERVAL '24 hours')
 	defer rows.Close()
 
 	payload, _ := json.Marshal(map[string]string{
-		"title": "Budgets. Money moment",
+		"title": "Ber-Uang. Money moment",
 		"body":  "Ada tagihan atau saldo dompet yang perlu diperiksa.",
 		"url":   "/",
 	})

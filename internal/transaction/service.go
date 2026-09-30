@@ -26,6 +26,7 @@ type Transaction struct {
 	Type            string    `json:"type"`
 	Title           string    `json:"title"`
 	Category        string    `json:"category"`
+	Subcategory     string    `json:"subcategory"`
 	Note            string    `json:"note"`
 	Amount          float64   `json:"amount"`
 	TransactionDate string    `json:"transactionDate"`
@@ -53,6 +54,7 @@ type SaveTransactionRequest struct {
 	Type            string  `json:"type"`
 	Title           string  `json:"title"`
 	Category        string  `json:"category"`
+	Subcategory     string  `json:"subcategory"`
 	Note            string  `json:"note"`
 	Amount          float64 `json:"amount"`
 	TransactionDate string  `json:"transactionDate"`
@@ -116,6 +118,7 @@ func normalizeRequest(req SaveTransactionRequest) (SaveTransactionRequest, error
 	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
 	req.Title = strings.TrimSpace(req.Title)
 	req.Category = strings.TrimSpace(req.Category)
+	req.Subcategory = strings.TrimSpace(req.Subcategory)
 	req.Note = strings.TrimSpace(req.Note)
 	req.TransactionDate = strings.TrimSpace(req.TransactionDate)
 
@@ -167,6 +170,7 @@ func normalizeRequest(req SaveTransactionRequest) (SaveTransactionRequest, error
 			return SaveTransactionRequest{}, errors.New("to wallet must be different from wallet")
 		}
 		req.Category = "Transfer"
+		req.Subcategory = ""
 	} else {
 		req.ToWalletID = nil
 	}

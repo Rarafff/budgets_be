@@ -13,7 +13,7 @@ type PostgresRepository struct {
 func (r PostgresRepository) ListTransactions(ctx context.Context, userID string) ([]Transaction, error) {
 	rows, err := r.DB.QueryContext(ctx, `
 SELECT t.id::text, t.user_id::text, t.scope, t.couple_id::text, t.wallet_id::text, w.name, t.to_wallet_id::text, tw.name,
-	t.type, t.title, t.category, t.note, t.amount, t.transaction_date::text, t.created_at, t.updated_at
+	t.type, t.title, t.category, t.subcategory, t.note, t.amount, t.transaction_date::text, t.created_at, t.updated_at
 FROM transactions t
 JOIN wallets w ON w.id = t.wallet_id
 LEFT JOIN wallets tw ON tw.id = t.to_wallet_id
@@ -53,14 +53,14 @@ func (r PostgresRepository) CreateTransaction(ctx context.Context, userID string
 	}
 
 	transaction, err := scanTransactionRow(tx.QueryRowContext(ctx, `
-INSERT INTO transactions (user_id, scope, couple_id, wallet_id, to_wallet_id, type, title, category, note, amount, transaction_date)
-VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO transactions (user_id, scope, couple_id, wallet_id, to_wallet_id, type, title, category, subcategory, note, amount, transaction_date)
+VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING id::text, user_id::text, scope, couple_id::text, wallet_id::text,
 	(SELECT name FROM wallets WHERE id = wallet_id),
 	to_wallet_id::text,
 	(SELECT name FROM wallets WHERE id = to_wallet_id),
-	type, title, category, note, amount, transaction_date::text, created_at, updated_at
-`, userID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Note, req.Amount, req.TransactionDate))
+	type, title, category, subcategory, note, amount, transaction_date::text, created_at, updated_at
+`, userID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Subcategory, req.Note, req.Amount, req.TransactionDate))
 	if err != nil {
 		return Transaction{}, err
 	}
@@ -135,17 +135,18 @@ SET scope = $3,
 	type = $7,
 	title = $8,
 	category = $9,
-	note = $10,
-	amount = $11,
-	transaction_date = $12,
+	subcategory = $10,
+	note = $11,
+	amount = $12,
+	transaction_date = $13,
 	updated_at = NOW()
 WHERE user_id = $1 AND id = $2
 RETURNING id::text, user_id::text, scope, couple_id::text, wallet_id::text,
 	(SELECT name FROM wallets WHERE id = wallet_id),
 	to_wallet_id::text,
 	(SELECT name FROM wallets WHERE id = to_wallet_id),
-	type, title, category, note, amount, transaction_date::text, created_at, updated_at
-`, userID, transactionID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Note, req.Amount, req.TransactionDate))
+	type, title, category, subcategory, note, amount, transaction_date::text, created_at, updated_at
+`, userID, transactionID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Subcategory, req.Note, req.Amount, req.TransactionDate))
 	if err != nil {
 		return Transaction{}, err
 	}
@@ -158,14 +159,14 @@ RETURNING id::text, user_id::text, scope, couple_id::text, wallet_id::text,
 
 func insertTransaction(ctx context.Context, tx *sql.Tx, userID string, req SaveTransactionRequest) (Transaction, error) {
 	return scanTransactionRow(tx.QueryRowContext(ctx, `
-INSERT INTO transactions (user_id, scope, couple_id, wallet_id, to_wallet_id, type, title, category, note, amount, transaction_date)
-VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO transactions (user_id, scope, couple_id, wallet_id, to_wallet_id, type, title, category, subcategory, note, amount, transaction_date)
+VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING id::text, user_id::text, scope, couple_id::text, wallet_id::text,
 	(SELECT name FROM wallets WHERE id = wallet_id),
 	to_wallet_id::text,
 	(SELECT name FROM wallets WHERE id = to_wallet_id),
-	type, title, category, note, amount, transaction_date::text, created_at, updated_at
-`, userID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Note, req.Amount, req.TransactionDate))
+	type, title, category, subcategory, note, amount, transaction_date::text, created_at, updated_at
+`, userID, req.Scope, req.CoupleID, req.WalletID, req.ToWalletID, req.Type, req.Title, req.Category, req.Subcategory, req.Note, req.Amount, req.TransactionDate))
 }
 
 func (r PostgresRepository) DeleteTransaction(ctx context.Context, userID, transactionID string) error {
@@ -224,7 +225,7 @@ func findTransactionForUpdate(ctx context.Context, tx *sql.Tx, userID, transacti
 	var coupleID sql.NullString
 	var toWalletID sql.NullString
 	err := tx.QueryRowContext(ctx, `
-SELECT scope, couple_id::text, wallet_id::text, to_wallet_id::text, type, title, category, note, amount, transaction_date::text
+SELECT scope, couple_id::text, wallet_id::text, to_wallet_id::text, type, title, category, subcategory, note, amount, transaction_date::text
 FROM transactions
 WHERE user_id = $1 AND id = $2
 FOR UPDATE
@@ -236,6 +237,7 @@ FOR UPDATE
 		&req.Type,
 		&req.Title,
 		&req.Category,
+		&req.Subcategory,
 		&req.Note,
 		&req.Amount,
 		&req.TransactionDate,
@@ -337,6 +339,7 @@ func scanTransaction(scanner transactionScanner) (Transaction, error) {
 		&transaction.Type,
 		&transaction.Title,
 		&transaction.Category,
+		&transaction.Subcategory,
 		&transaction.Note,
 		&transaction.Amount,
 		&transaction.TransactionDate,

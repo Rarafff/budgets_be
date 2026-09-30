@@ -12,6 +12,7 @@ var validTypes = map[string]bool{"expense": true, "income": true}
 type Category struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"userId"`
+	ParentID  *string   `json:"parentId"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
 	Icon      string    `json:"icon"`
@@ -19,13 +20,15 @@ type Category struct {
 }
 
 type SaveRequest struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Icon string `json:"icon"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Icon     string `json:"icon"`
+	ParentID string `json:"parentId"`
 }
 
 type Repository interface {
 	List(ctx context.Context, userID string) ([]Category, error)
+	Get(ctx context.Context, userID, categoryID string) (Category, error)
 	Create(ctx context.Context, userID string, req SaveRequest) (Category, error)
 	Delete(ctx context.Context, userID, categoryID string) error
 }
@@ -40,6 +43,7 @@ func (s Service) Create(ctx context.Context, userID string, req SaveRequest) (Ca
 	req.Name = strings.Join(strings.Fields(req.Name), " ")
 	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
 	req.Icon = strings.TrimSpace(req.Icon)
+	req.ParentID = strings.TrimSpace(req.ParentID)
 	if req.Name == "" {
 		return Category{}, errors.New("category name is required")
 	}
@@ -51,6 +55,18 @@ func (s Service) Create(ctx context.Context, userID string, req SaveRequest) (Ca
 	}
 	if len([]rune(req.Icon)) > 80 {
 		return Category{}, errors.New("category icon is invalid")
+	}
+	if req.ParentID != "" {
+		parent, err := s.Repo.Get(ctx, userID, req.ParentID)
+		if err != nil {
+			return Category{}, errors.New("parent category not found")
+		}
+		if parent.ParentID != nil {
+			return Category{}, errors.New("subcategory cannot contain another subcategory")
+		}
+		if parent.Type != req.Type {
+			return Category{}, errors.New("subcategory type must match its parent category")
+		}
 	}
 	return s.Repo.Create(ctx, userID, req)
 }
