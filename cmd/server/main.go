@@ -138,7 +138,7 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	log.Printf("budgets_be listening on http://localhost:%s", cfg.Port)
+	log.Printf("Ber-Uang API listening on http://localhost:%s", cfg.Port)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server: %v", err)
 	}

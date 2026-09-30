@@ -76,6 +76,7 @@ CREATE INDEX IF NOT EXISTS wallets_user_id_idx ON wallets (user_id);
 CREATE TABLE IF NOT EXISTS categories (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	parent_id UUID REFERENCES categories(id) ON DELETE CASCADE,
 	name TEXT NOT NULL,
 	type TEXT NOT NULL CHECK (type IN ('expense', 'income')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -83,6 +84,13 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 CREATE INDEX IF NOT EXISTS categories_user_id_idx ON categories (user_id);
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon TEXT NOT NULL DEFAULT '';
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES categories(id) ON DELETE CASCADE;
+ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_user_id_name_type_key;
+CREATE UNIQUE INDEX IF NOT EXISTS categories_root_unique_idx
+	ON categories (user_id, name, type)
+	WHERE parent_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS categories_child_unique_idx
+	ON categories (user_id, parent_id, name);
 
 CREATE TABLE IF NOT EXISTS transactions (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -92,6 +100,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	type TEXT NOT NULL,
 	title TEXT NOT NULL,
 	category TEXT NOT NULL DEFAULT '',
+	subcategory TEXT NOT NULL DEFAULT '',
 	note TEXT NOT NULL DEFAULT '',
 	amount NUMERIC(20, 2) NOT NULL,
 	transaction_date DATE NOT NULL,
@@ -102,6 +111,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS transactions_user_id_idx ON transactions (user_id);
 CREATE INDEX IF NOT EXISTS transactions_wallet_id_idx ON transactions (wallet_id);
 CREATE INDEX IF NOT EXISTS transactions_transaction_date_idx ON transactions (transaction_date);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS subcategory TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS couples (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

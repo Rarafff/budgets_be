@@ -105,6 +105,16 @@ type reportSummary struct {
 	HighestSpendingDay  *report.DailySpending      `json:"highestSpendingDay"`
 }
 
+func isCasualGreeting(question string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(question))
+	normalized = strings.Trim(normalized, " .,!?:;…")
+	_, ok := map[string]struct{}{
+		"hi": {}, "hello": {}, "hey": {}, "halo": {}, "hai": {}, "pagi": {}, "siang": {}, "sore": {}, "malam": {},
+		"selamat pagi": {}, "selamat siang": {}, "selamat sore": {}, "selamat malam": {}, "hai ai": {}, "halo ai": {}, "ai": {},
+	}[normalized]
+	return ok
+}
+
 func (s Service) GetAdvice(ctx context.Context, userID string, req AdviceRequest) (AdviceResponse, error) {
 	if s.LLM == nil {
 		return AdviceResponse{}, fmt.Errorf("advisor LLM is not configured")
@@ -125,8 +135,9 @@ func (s Service) GetAdvice(ctx context.Context, userID string, req AdviceRequest
 		return AdviceResponse{}, err
 	}
 
+	isGreeting := isCasualGreeting(req.Question)
 	var snapshot *reportSummary
-	if strings.TrimSpace(userID) != "" && s.Report.Repo != nil {
+	if !isGreeting && strings.TrimSpace(userID) != "" && s.Report.Repo != nil {
 		monthly, err := s.Report.Monthly(ctx, userID, req.PeriodMonth)
 		if err != nil {
 			return AdviceResponse{}, err
@@ -151,17 +162,14 @@ func (s Service) GetAdvice(ctx context.Context, userID string, req AdviceRequest
 	messages := []openrouter.Message{
 		{
 			Role: "system",
-			Content: strings.TrimSpace(`You are a budgeting advisor for a personal finance app.
-Give practical budgeting guidance from the user's data.
-Do not claim to be a licensed financial advisor.
-Do not provide guaranteed investment, loan, tax, or legal advice.
-When data is missing, state the assumption.
-Keep the response concise and actionable.
-Use the user's currency.
-Base your answer on the report snapshot when it is available.
-Use the recent conversation only for follow-up context.
-Do not invent transactions, balances, goals, or budgets that are not present in the provided data.
-Return plain text with sections: Summary, Risks, Suggested Actions.`),
+			Content: strings.TrimSpace(`You are the warm, practical bear money buddy in a personal finance app.
+Reply in the same language as the user's latest message. Sound kind, calm, and natural. Be friendly without being overly cute, repetitive, or theatrical.
+
+For a greeting or casual small talk, reply with a short greeting and one helpful question about what the user would like to do. Do not mention their financial data, do not generate a report, and do not use headings or bullet points.
+
+For a financial question, answer the question directly first. Use the report snapshot only when it helps answer that question. Keep the response short unless the user asks for a review or detailed plan. Use bullets only when they make actions easier to scan. Use headings only for a detailed review, never as a mandatory template.
+
+Give practical budgeting guidance from the user's data. Do not claim to be a licensed financial advisor. Do not provide guaranteed investment, loan, tax, or legal advice. When data is missing, say what is missing without guessing. Use the user's currency. Use recent conversation only for follow-up context. Do not invent transactions, balances, goals, or budgets that are not in the provided data.`),
 		},
 		{
 			Role: "user",
